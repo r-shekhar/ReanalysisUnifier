@@ -1,3 +1,8 @@
+#NetCDF files
+*/*.nc
+*/*/*.nc
+cfsr_monthly/SHEKHAR*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
