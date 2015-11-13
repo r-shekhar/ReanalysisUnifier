@@ -2,11 +2,10 @@
 
 import netCDF4
 from glob import glob
-import bson
 import sys
 import numpy as np
 import pymongo
-import simplejson as json
+import hashlib
 
 def get_netcdf_filenames():
     j = glob('cfsr*/*/*nc')
@@ -45,7 +44,9 @@ def main():
             # print(type(filedict[x]))
 
         dimdict = {}
+        dimnames = []
         for x in fh.dimensions:
+            dimnames.append(x)
             dimdict[x] = {}
             dim = fh.dimensions[x]
             dimdict[x]['length'] = len(dim)
@@ -54,6 +55,7 @@ def main():
         filedict['dimensions'] = dimdict
 
         vardict = {}
+        varnames = []
         for x in fh.variables:
             if ('.' in x):
                 xmod = x.replace('.','|')
@@ -61,6 +63,7 @@ def main():
                 xmod = x
 
             vardict[xmod] = {}
+            varnames.append(xmod)
 
             var = fh.variables[x]
 
@@ -91,11 +94,14 @@ def main():
 
         filedict['filetime'] = list(filetimes)
         filedict['variables'] = vardict
+        filedict['varnames'] = varnames
+        filedict['dimnames'] = dimnames
+        filedict['_id'] = hashlib.sha512(f).hexdigest()
+        # filedict['filecontent_md5'] = hashlib.md5(open(f, 'r').read()).hexdigest()
 
 #        print(json.dumps(filedict, sort_keys=True, indent='    '))
         print(filedict)
 
-        data = bson.BSON.encode(filedict)
         client = pymongo.MongoClient()
         db = client.rawdata
         collection = db.netcdf
