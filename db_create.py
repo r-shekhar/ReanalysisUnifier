@@ -9,10 +9,12 @@ import hashlib
 
 def get_netcdf_filenames():
     j = glob('cfsr*/*/*nc')
-    j.extend(glob('cmap*/*nc'))
-    j.extend(glob('era*/*nc'))
-    j.extend(glob('merra*/*nc'))
-    j.extend(glob('trmm*/*nc'))
+    # j.extend(glob('cmap*/*nc'))
+    # j.extend(glob('era*/*nc'))
+    # j.extend(glob('gp*/*nc'))
+    # j.extend(glob('merra*/*nc'))
+    # j.extend(glob('trmm*/*nc'))
+    j.extend(glob('ersst*/*nc'))
     return j
 
 def main():

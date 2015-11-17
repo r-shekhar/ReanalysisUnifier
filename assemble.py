@@ -22,89 +22,8 @@ def year_month_iter(start_year, start_month, end_year, end_month ):
         yield datetime.datetime(y, m+1, 1)
 
 
-# def joblist_cfsr_flatvar(col, varName):
-#     print("Querying database for CFSR {0}".format(varName))
-#     q = {}
-#     q['filename_on_disk'] = {"$regex": "^cfsr.monthly.*"}
-#     q['varnames'] = {"$in": [varName]}
-
-#     filenames = []
-#     datetimes = []
-#     indices = []
-#     variables = []
-#     # pprint.pprint(col.find_one())
-#     i = 0
-#     for j in col.find(q):
-#         # print(j['filename_on_disk'])
-#         # pprint(j)
-
-#         n = len(j['filetime'])
-#         filenames.extend([j['filename_on_disk'], ]*n)
-#         datetimes.extend(j['filetime'])
-#         indices.extend(list(range(n)))
-#         variables.extend([varName]*n)
-#         i += 1
-#     # print(i)
-
-#     d = {'filenames': filenames, 'datetimes': datetimes, 'indices': indices,
-#          'variables': variables}
-#     df = pd.DataFrame(d)
-#     df = df.sort_values(by='datetimes')
-#     dt = np.array(df.datetimes, dtype='M8[h]')
-#     d2 = dt[1:] - dt[:-1]
-#     assert(np.all(d2 == np.timedelta64(6, 'h')))
-#     return df
-
-
-def joblist_cfsr_3dvar(col, varNames):
-    print("Querying database for CFSR {0}".format(varNames[0]))
-    q = {}
-    q['filename_on_disk'] = {"$regex": "^cfsr.monthly.*"}
-    q['varnames'] = {"$in": varNames}
-
-    filenames = []
-    datetimes = []
-    indices = []
-    variables = []
-    # pprint.pprint(col.find_one())
-    i = 0
-    for j in col.find(q):
-        # print(j['filename_on_disk'])
-        # pprint(j)
-
-        n = len(j['filetime'])
-        filenames.extend([j['filename_on_disk'], ]*n)
-        datetimes.extend(j['filetime'])
-        indices.extend(list(range(n)))
-
-        #assuming more than one variable from varNames isn't in a file
-        for v in varNames:
-            if v in j['variables']:
-                # print(v)
-                variables.extend([v]*n)
-        i += 1
-    # print(i)
-
-    d = {'filenames': filenames, 'datetimes': datetimes, 'indices': indices,
-         'variables': variables}
-    df = pd.DataFrame(d)
-    df = df.sort_values(by='datetimes')
-
-    # renumber row index
-    df.reset_index()
-    df.index = range(len(datetimes))
-
-    dt = np.array(df.datetimes, dtype='M8[h]')
-    d2 = dt[1:] - dt[:-1]
-
-    # for z in df.itertuples():
-    #     print(z[1])
-
-    # assert(np.all(d2 == np.timedelta64(6, 'h')))
-    return df
-
 def joblist_create(col, name_regex, varNames):
-    print("Querying database for CFSR {0}".format(varNames[0]))
+    print("Querying database for {0} {1}".format(name_regex, ' '.join(varNames)))
     q = {}
     q['filename_on_disk'] = {"$regex": name_regex}
     q['varnames'] = {"$in": varNames}
@@ -130,8 +49,7 @@ def joblist_create(col, name_regex, varNames):
                 # print(v)
                 variables.extend([v]*n)
         i += 1
-    # print(i)
-
+    
     d = {'filenames': filenames, 'datetimes': datetimes, 'indices': indices,
          'variables': variables}
     df = pd.DataFrame(d)
@@ -141,13 +59,11 @@ def joblist_create(col, name_regex, varNames):
     df.reset_index()
     df.index = range(len(datetimes))
 
-    dt = np.array(df.datetimes, dtype='M8[h]')
-    d2 = dt[1:] - dt[:-1]
+    # diagnostics
+    # dt = np.array(df.datetimes, dtype='M8[h]')
+    # d2 = dt[1:] - dt[:-1]
+    # print(d2)
 
-    # for z in df.itertuples():
-    #     print(z[1])
-
-    # assert(np.all(d2 == np.timedelta64(6, 'h')))
     return df
 
 
@@ -251,7 +167,7 @@ def glue_joblist_into_data(joblist, reanalysis, timeres,
 
 
 def glue_joblist_into_monthly_data(joblist, reanalysis, timeres,
-                           field, field_units, field_long_name):
+                           field, field_units, field_long_name, deaccumulate=None):
     # could use multiprocessing easily, but seems to cause memory issues
     # better off not using it. Parallelize by extracting multiple variables
     # in separate python processes
@@ -309,7 +225,7 @@ def glue_joblist_into_monthly_data(joblist, reanalysis, timeres,
                 print(coord_arrays)
                 sys.exit(8)
             data_file_initialized = True
-        if (N_timesteps > 1):
+        if (N_timesteps > 1 and (deaccumulate != "ERAI")):
             print("Averaging over {0} timesteps".format(N_timesteps))
             data_sum = np.array(data.copy(), dtype=np.float64)
             for k in m:
@@ -317,6 +233,32 @@ def glue_joblist_into_monthly_data(joblist, reanalysis, timeres,
                 data_sum += data
             data_sum /= N_timesteps
             data = data_sum.astype(np.float32)
+        elif (N_timesteps > 1 and (deaccumulate == "ERAI")):
+            print("Using ERA-Interim deaccumulation")
+            new_shape = [N_timesteps,]
+            new_shape.extend(data.shape)
+            data_arr = np.zeros(tuple(new_shape), dtype=np.float32)
+
+            #restart the iterator
+            m = imap(fetch_data, joblist_month_subset.itertuples())
+
+            # fill the array
+            for jtimestep, k in enumerate(m):
+                (junk_index, junk_timestamp, data, junk_coords) = k                
+                data_arr[jtimestep] = data / (3.*3600.) # 3 hour accumulation
+
+            #sanity check to make sure we're deaccumulating a whole day
+            assert(N_timesteps % 8 == 0) 
+
+            # ERAI accumulates over every 12 hours at 3 hour intervals
+            # if jtimestep%4 = 0, do nothing, else subtract the previous entry.
+            # loop backwards to avoid modifying values before we've deaccumulated
+            for jtimestep in reversed(range(0, N_timesteps)):
+                # print((jtimestep, np.mean(data_arr[jtimestep])))
+                if (jtimestep%4 != 0):
+                    data_arr[jtimestep] = data_arr[jtimestep] - data_arr[jtimestep-1]
+            # Take time mean of deaccumulated data, pass it for writing
+            data = np.mean(data_arr, axis=0)
         else:
             print("Taking data")
 
@@ -350,26 +292,30 @@ def main():
     db = client.rawdata
     col = db.netcdf
 
+    deaccumulate_ERAI_forecast = "ERAI"
 
     dispatch_table = [
-        (joblist_create, "^cfsr.monthly", ["SHTFL_L1_Avg_1",],('cfsr', 'monthly', 'SHF', 'Wm-2', "Sensible Heat Flux"),),
-        (joblist_create, "^cfsr.monthly", ["LHTFL_L1_Avg_1",],('cfsr', 'monthly', 'LHF', 'Wm-2', "Latent Heat Flux"),),
-        (joblist_create, "^cfsr.monthly", ["CSDLF_L1_Avg_1",],('cfsr', 'monthly', 'SLWDN_CLRSKY', 'Wm-2', "Longwave Down at Surface, Clear Sky"),),
-        (joblist_create, "^cfsr.monthly", ["CSDSF_L1_Avg_1",],('cfsr', 'monthly', 'SSWDN_CLRSKY', 'Wm-2', "Shortwave Down at Surface, Clear Sky"),),
-        (joblist_create, "^cfsr.monthly", ["CSULF_L1_Avg_1",],('cfsr', 'monthly', 'SLWUP_CLRSKY', 'Wm-2', "Longwave Up at Surface, Clear Sky"),),
-        (joblist_create, "^cfsr.monthly", ["CSUSF_L1_Avg_1",],('cfsr', 'monthly', 'SSWUP_CLRSKY', 'Wm-2', "Shortwave Up at Surface, Clear Sky"),),
-        (joblist_create, "^cfsr.monthly", ["CSULF_L8_Avg_1",],('cfsr', 'monthly', 'TLWUP_CLRSKY', 'Wm-2', "Longwave Up at TOA, Clear Sky"),),
-        (joblist_create, "^cfsr.monthly", ["DSWRF_L8_Avg_1",],('cfsr', 'monthly', 'TSWDN', 'Wm-2', "Shortwave Down at TOA"),),
-        (joblist_create, "^cfsr.monthly", ["USWRF_L8_Avg_1",],('cfsr', 'monthly', 'TSWUP', 'Wm-2', "Shortwave UP at TOA"),),
-        (joblist_create, "^cfsr.monthly", ["ULWRF_L8_Avg_1",],('cfsr', 'monthly', 'TLWUP', 'Wm-2', "Longwave Up at TOA"),),
-        (joblist_create, "^cfsr.monthly", ["DLWRF_L1_Avg_1",],('cfsr', 'monthly', 'SLWDN', 'Wm-2', "Longwave Down at Surface"),),
-        (joblist_create, "^cfsr.monthly", ["ULWRF_L1_Avg_1",],('cfsr', 'monthly', 'SLWUP', 'Wm-2', "Longwave Up at Surface"),),
-        (joblist_create, "^cfsr.monthly", ["DSWRF_L1_Avg_1",],('cfsr', 'monthly', 'SSWDN', 'Wm-2', "Shortwave Down at Surface"),),
-        (joblist_create, "^cfsr.monthly", ["USWRF_L1_Avg_1",],('cfsr', 'monthly', 'SSWUP', 'Wm-2', "Shortwave Up at Surface"),),
-        (joblist_create, "^cfsr.monthly", ["GFLUX_L1_Avg_1",],('cfsr', 'monthly', 'GHF', 'Wm-2', "Ground Heat Flux"),),
 
-        (joblist_create, "^cfsr.monthly", ["HGT_L100_Avg", "HGT_L100"],('cfsr', 'monthly', 'GHT', "gpm", "Geopotential Height")),
-        (joblist_create, "^cfsr.monthly", ["HGT_L1_Avg", "HGT_L1"],('cfsr', 'monthly', 'GHT_SURF', "gpm", "Geopotential Height At Surface")),        
+        #--------------------- CFSR ----------------------------------------------------------------
+        (joblist_create, "^cfsr.monthly", ["SHTFL_L1_Avg_1",],('cfsr', 'monthly', 'SHF', 'W m-2', "Sensible Heat Flux"),),
+        (joblist_create, "^cfsr.monthly", ["LHTFL_L1_Avg_1",],('cfsr', 'monthly', 'LHF', 'W m-2', "Latent Heat Flux"),),
+        (joblist_create, "^cfsr.monthly", ["CSDLF_L1_Avg_1",],('cfsr', 'monthly', 'SLWDN_CLRSKY', 'W m-2', "Longwave Down at Surface, Clear Sky"),),
+        (joblist_create, "^cfsr.monthly", ["CSDSF_L1_Avg_1",],('cfsr', 'monthly', 'SSWDN_CLRSKY', 'W m-2', "Shortwave Down at Surface, Clear Sky"),),
+        (joblist_create, "^cfsr.monthly", ["CSULF_L1_Avg_1",],('cfsr', 'monthly', 'SLWUP_CLRSKY', 'W m-2', "Longwave Up at Surface, Clear Sky"),),
+        (joblist_create, "^cfsr.monthly", ["CSUSF_L1_Avg_1",],('cfsr', 'monthly', 'SSWUP_CLRSKY', 'W m-2', "Shortwave Up at Surface, Clear Sky"),),
+        (joblist_create, "^cfsr.monthly", ["CSULF_L8_Avg_1",],('cfsr', 'monthly', 'TLWUP_CLRSKY', 'W m-2', "Longwave Up at TOA, Clear Sky"),),
+        (joblist_create, "^cfsr.monthly", ["CSUSF_L8_Avg_1",],('cfsr', 'monthly', 'TSWUP_CLRSKY', 'W m-2', "Shortwave Up at TOA, Clear Sky"),),
+        (joblist_create, "^cfsr.monthly", ["DSWRF_L8_Avg_1",],('cfsr', 'monthly', 'TSWDN', 'W m-2', "Shortwave Down at TOA"),),
+        (joblist_create, "^cfsr.monthly", ["USWRF_L8_Avg_1",],('cfsr', 'monthly', 'TSWUP', 'W m-2', "Shortwave Up at TOA"),),
+        (joblist_create, "^cfsr.monthly", ["ULWRF_L8_Avg_1",],('cfsr', 'monthly', 'TLWUP', 'W m-2', "Longwave Up at TOA"),),
+        (joblist_create, "^cfsr.monthly", ["DLWRF_L1_Avg_1",],('cfsr', 'monthly', 'SLWDN', 'W m-2', "Longwave Down at Surface"),),
+        (joblist_create, "^cfsr.monthly", ["ULWRF_L1_Avg_1",],('cfsr', 'monthly', 'SLWUP', 'W m-2', "Longwave Up at Surface"),),
+        (joblist_create, "^cfsr.monthly", ["DSWRF_L1_Avg_1",],('cfsr', 'monthly', 'SSWDN', 'W m-2', "Shortwave Down at Surface"),),
+        (joblist_create, "^cfsr.monthly", ["USWRF_L1_Avg_1",],('cfsr', 'monthly', 'SSWUP', 'W m-2', "Shortwave Up at Surface"),),
+        (joblist_create, "^cfsr.monthly", ["GFLUX_L1_Avg_1",],('cfsr', 'monthly', 'GHF', 'W m-2', "Ground Heat Flux"),),
+
+        (joblist_create, "^cfsr.monthly", ["HGT_L100_Avg", "HGT_L100"],('cfsr', 'monthly', 'GHT', "m", "Geopotential Height")),
+        (joblist_create, "^cfsr.monthly", ["HGT_L1_Avg", "HGT_L1"],('cfsr', 'monthly', 'GHT_SURF', "m", "Geopotential Height At Surface")),        
         (joblist_create, "^cfsr.monthly", ["PRES_L1_Avg", "PRES_L1"],('cfsr', 'monthly', 'PSFC', "Pa", "Surface Pressure")),
         (joblist_create, "^cfsr.monthly", ["PRMSL_L101_Avg", "PRMSL_L101"],('cfsr', 'monthly', 'MSLP', "Pa", "Pressure at Mean Sea Level")),
         (joblist_create, "^cfsr.monthly", ["SPF_H_L100_Avg", "SPF_H_L100"],('cfsr', 'monthly', 'SPHUM', "kg kg-1", "Specific Humidity")),
@@ -378,11 +324,15 @@ def main():
         (joblist_create, "^cfsr.monthly", ["V_GRD_L100_Avg", "V_GRD_L100"],('cfsr', 'monthly', 'V', "m s-1", "Meridional Wind")),
         (joblist_create, "^cfsr.monthly", ["V_VEL_L100_Avg", "V_VEL_L100"],('cfsr', 'monthly', 'OMEGA', "Pa s-1", "Pressure Velocity")),
 
+        #--------------------- Precip --------------------------------------------------------------
+
         (joblist_create, "^cmap.monthly", ["precip"],('cmap', 'monthly', 'PRECIP', "mm day-1", "Precipitation")),
         (joblist_create, "^gpcc.monthly.*combined.*", ["precip"],('gpcc', 'monthly', 'PRECIP', "mm", "Precipitation")),
         (joblist_create, "^gpcp.monthly.*", ["precip"],('gpcp', 'monthly', 'PRECIP', "mm day-1", "Precipitation")),
 
-        (joblist_create, "^merra.monthly", ["h"],('merra', 'monthly', 'GHT', "gpm", "Geopotential Height")),
+        #--------------------- MERRA ---------------------------------------------------------------
+
+        (joblist_create, "^merra.monthly", ["h"],('merra', 'monthly', 'GHT', "m", "Geopotential Height")),
         (joblist_create, "^merra.monthly", ["phis"],('merra', 'monthly', 'GHT_SURF', "m-2 s-2", "Geopotential Height At Surface")),        
         (joblist_create, "^merra.monthly", ["ps"],('merra', 'monthly', 'PSFC', "Pa", "Surface Pressure")),
         (joblist_create, "^merra.monthly", ["slp"],('merra', 'monthly', 'MSLP', "Pa", "Pressure at Mean Sea Level")),
@@ -392,21 +342,26 @@ def main():
         (joblist_create, "^merra.monthly", ["v"],('merra', 'monthly', 'V', "m s-1", "Meridional Wind")),
         (joblist_create, "^merra.monthly", ["omega"],('merra', 'monthly', 'OMEGA', "Pa s-1", "Pressure Velocity")),
 
-        (joblist_create, "^merra.monthly", ["hflux",],('merra', 'monthly', 'SHF', 'Wm-2', "Sensible Heat Flux"),),
-        (joblist_create, "^merra.monthly", ["eflux",],('merra', 'monthly', 'LHF', 'Wm-2', "Latent Heat Flux"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SLWDN_CLRSKY', 'Wm-2', "Longwave Down at Surface, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SSWDN_CLRSKY', 'Wm-2', "Shortwave Down at Surface, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SLWUP_CLRSKY', 'Wm-2', "Longwave Up at Surface, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SSWUP_CLRSKY', 'Wm-2', "Shortwave Up at Surface, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'TLWUP_CLRSKY', 'Wm-2', "Longwave Up at TOA, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'TSWDN', 'Wm-2', "Shortwave Down at TOA"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'TSWUP', 'Wm-2', "Shortwave UP at TOA"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'TLWUP', 'Wm-2', "Longwave Up at TOA"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SLWDN', 'Wm-2', "Longwave Down at Surface"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SLWUP', 'Wm-2', "Longwave Up at Surface"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SSWDN', 'Wm-2', "Shortwave Down at Surface"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SSWUP', 'Wm-2', "Shortwave Up at Surface"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'GHF', 'Wm-2', "Ground Heat Flux"),),
+        (joblist_create, "^merra.monthly", ["hflux",],('merra', 'monthly', 'SHF', 'W m-2', "Sensible Heat Flux"),),
+        (joblist_create, "^merra.monthly", ["eflux",],('merra', 'monthly', 'LHF', 'W m-2', "Latent Heat Flux"),),
+
+        (joblist_create, "^merra.monthly", ["lwgabclr",],('merra', 'monthly', 'SLWAB_CLRSKY', 'W m-2', "Longwave Absorbed at Surface, Clear Sky"),),
+        (joblist_create, "^merra.monthly", ["lwgntclr",],('merra', 'monthly', 'SLWNT_CLRSKY', 'W m-2', "Longwave Net at Surface, Clear Sky"),),
+        (joblist_create, "^merra.monthly", ["lwtupclr",],('merra', 'monthly', 'TLWUP_CLRSKY', 'W m-2', "Longwave Up at TOA, Clear Sky"),),
+        (joblist_create, "^merra.monthly", ["swgdnclr",],('merra', 'monthly', 'SSWDN_CLRSKY', 'W m-2', "Shortwave Down at Surface, Clear Sky"),),
+        (joblist_create, "^merra.monthly", ["swgntclr",],('merra', 'monthly', 'SSWNT_CLRSKY', 'W m-2', "Shortwave Net at Surface, Clear Sky"),),
+        (joblist_create, "^merra.monthly", ["swtntclr",],('merra', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky"),),        
+
+        (joblist_create, "^merra.monthly", ["lwgab",],('merra', 'monthly', 'SLWAB', 'W m-2', "Longwave Absorbed at Surface"),),
+        (joblist_create, "^merra.monthly", ["lwgem",],('merra', 'monthly', 'SLWEM', 'W m-2', "Longwave Emitted at Surface"),),
+        (joblist_create, "^merra.monthly", ["lwgnt",],('merra', 'monthly', 'SLWNT', 'W m-2', "Longwave Net at Surface"),),
+        (joblist_create, "^merra.monthly", ["lwtup",],('merra', 'monthly', 'TLWUP', 'W m-2', "Longwave Up at TOA"),),
+        (joblist_create, "^merra.monthly", ["swgdn",],('merra', 'monthly', 'SSWDN', 'W m-2', "Shortwave Down at Surface"),),
+        (joblist_create, "^merra.monthly", ["swgnt",],('merra', 'monthly', 'SSWNT', 'W m-2', "Shortwave Net at Surface"),),
+        (joblist_create, "^merra.monthly", ["swtdn",],('merra', 'monthly', 'TSWDN', 'W m-2', "Shortwave Down at TOA"),),
+        (joblist_create, "^merra.monthly", ["swtnt",],('merra', 'monthly', 'TSWNT', 'W m-2', "Shortwave Net at TOA"),),
+
+        #--------------------- MERRA 2 -------------------------------------------------------------
 
         (joblist_create, "^merra2.monthly", ["H"],('merra2', 'monthly', 'GHT', "gpm", "Geopotential Height")),
         (joblist_create, "^merra2.monthly", ["PHIS"],('merra2', 'monthly', 'GHT_SURF', "m-2 s-2", "Geopotential Height At Surface")),        
@@ -420,32 +375,50 @@ def main():
 
         (joblist_create, "^merra2.monthly", ["HFLUX",],('merra2', 'monthly', 'SHF', 'Wm-2', "Sensible Heat Flux"),),
         (joblist_create, "^merra2.monthly", ["EFLUX",],('merra2', 'monthly', 'LHF', 'Wm-2', "Latent Heat Flux"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SLWDN_CLRSKY', 'Wm-2', "Longwave Down at Surface, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SSWDN_CLRSKY', 'Wm-2', "Shortwave Down at Surface, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SLWUP_CLRSKY', 'Wm-2', "Longwave Up at Surface, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SSWUP_CLRSKY', 'Wm-2', "Shortwave Up at Surface, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'TLWUP_CLRSKY', 'Wm-2', "Longwave Up at TOA, Clear Sky"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'TSWDN', 'Wm-2', "Shortwave Down at TOA"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'TSWUP', 'Wm-2', "Shortwave UP at TOA"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'TLWUP', 'Wm-2', "Longwave Up at TOA"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SLWDN', 'Wm-2', "Longwave Down at Surface"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SLWUP', 'Wm-2', "Longwave Up at Surface"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SSWDN', 'Wm-2', "Shortwave Down at Surface"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'SSWUP', 'Wm-2', "Shortwave Up at Surface"),),
-        # (joblist_create, "^merra.monthly", ["",],('merra', 'monthly', 'GHF', 'Wm-2', "Ground Heat Flux"),),
+        (joblist_create, "^merra2.monthly", ["LWGABCLR",],('merra2', 'monthly', 'SLWAB_CLRSKY', 'W m-2', "Longwave Absorbed at Surface, Clear Sky"),),
+        (joblist_create, "^merra2.monthly", ["LWGNTCLR",],('merra2', 'monthly', 'SLWNT_CLRSKY', 'W m-2', "Longwave Net at Surface, Clear Sky"),),
+        (joblist_create, "^merra2.monthly", ["LWTUPCLR",],('merra2', 'monthly', 'TLWUP_CLRSKY', 'W m-2', "Longwave Up at TOA, Clear Sky"),),
+        (joblist_create, "^merra2.monthly", ["SWGDNCLR",],('merra2', 'monthly', 'SSWDN_CLRSKY', 'W m-2', "Shortwave Down at Surface, Clear Sky"),),
+        (joblist_create, "^merra2.monthly", ["SWGNTCLR",],('merra2', 'monthly', 'SSWNT_CLRSKY', 'W m-2', "Shortwave Net at Surface, Clear Sky"),),
+        (joblist_create, "^merra2.monthly", ["SWTNTCLR",],('merra2', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky"),),        
 
-        (joblist_create, "^eraI.monthly", ["z"],('eraI', 'monthly', 'GHT', "m-2 s-2", "Geopotential Height")),
+        (joblist_create, "^merra2.monthly", ["LWGAB",],('merra2', 'monthly', 'SLWAB', 'W m-2', "Longwave Absorbed at Surface"),),
+        (joblist_create, "^merra2.monthly", ["LWGEM",],('merra2', 'monthly', 'SLWEM', 'W m-2', "Longwave Emitted at Surface"),),
+        (joblist_create, "^merra2.monthly", ["LWGNT",],('merra2', 'monthly', 'SLWNT', 'W m-2', "Longwave Net at Surface"),),
+        (joblist_create, "^merra2.monthly", ["LWTUP",],('merra2', 'monthly', 'TLWUP', 'W m-2', "Longwave Up at TOA"),),
+        (joblist_create, "^merra2.monthly", ["SWGDN",],('merra2', 'monthly', 'SSWDN', 'W m-2', "Shortwave Down at Surface"),),
+        (joblist_create, "^merra2.monthly", ["SWGNT",],('merra2', 'monthly', 'SSWNT', 'W m-2', "Shortwave Net at Surface"),),
+        (joblist_create, "^merra2.monthly", ["SWTDN",],('merra2', 'monthly', 'TSWDN', 'W m-2', "Shortwave Down at TOA"),),
+        (joblist_create, "^merra2.monthly", ["SWTNT",],('merra2', 'monthly', 'TSWNT', 'W m-2', "Shortwave Net at TOA"),),
+
+        #--------------------- ERA Interim ---------------------------------------------------------
+
+        (joblist_create, "^eraI.monthly", ["z"],('erai', 'monthly', 'GHT', "m-2 s-2", "Geopotential Height")),
         # (joblist_create, "^eraI.monthly", ["PHIS"],('eraI', 'monthly', 'GHT_SURF', "m-2 s-2", "Geopotential Height At Surface")),        
-        (joblist_create, "^eraI.monthly", ["sp"],('eraI', 'monthly', 'PSFC', "Pa", "Surface Pressure")),
-        (joblist_create, "^eraI.monthly", ["msl"],('eraI', 'monthly', 'MSLP', "Pa", "Pressure at Mean Sea Level")),
-        (joblist_create, "^eraI.monthly", ["q"],('eraI', 'monthly', 'SPHUM', "kg kg-1", "Specific Humidity")),
-        (joblist_create, "^eraI.monthly", ["t"],('eraI', 'monthly', 'T', "K", "Air Temperature")),
-        (joblist_create, "^eraI.monthly", ["u"],('eraI', 'monthly', 'U', "m s-1", "Zonal Wind")),
-        (joblist_create, "^eraI.monthly", ["v"],('eraI', 'monthly', 'V', "m s-1", "Meridional Wind")),
-        (joblist_create, "^eraI.monthly", ["w"],('eraI', 'monthly', 'OMEGA', "Pa s-1", "Pressure Velocity")),
+        (joblist_create, "^eraI.monthly", ["sp"],('erai', 'monthly', 'PSFC', "Pa", "Surface Pressure")),
+        (joblist_create, "^eraI.monthly", ["msl"],('erai', 'monthly', 'MSLP', "Pa", "Pressure at Mean Sea Level")),
+        (joblist_create, "^eraI.monthly", ["q"],('erai', 'monthly', 'SPHUM', "kg kg-1", "Specific Humidity")),
+        (joblist_create, "^eraI.monthly", ["t"],('erai', 'monthly', 'T', "K", "Air Temperature")),
+        (joblist_create, "^eraI.monthly", ["u"],('erai', 'monthly', 'U', "m s-1", "Zonal Wind")),
+        (joblist_create, "^eraI.monthly", ["v"],('erai', 'monthly', 'V', "m s-1", "Meridional Wind")),
+        (joblist_create, "^eraI.monthly", ["w"],('erai', 'monthly', 'OMEGA', "Pa s-1", "Pressure Velocity")),
 
-        # (joblist_create, "^eraI.monthly", ["HFLUX",],('eraI', 'monthly', 'SHF', 'Wm-2', "Sensible Heat Flux"),),
-        # (joblist_create, "^eraI.monthly", ["EFLUX",],('eraI', 'monthly', 'LHF', 'Wm-2', "Latent Heat Flux"),),
+        (joblist_create, "^eraI.monthly", ["sshf",],('erai', 'monthly', 'SHF', 'W m-2', "Sensible Heat Flux", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["slhf",],('erai', 'monthly', 'LHF', 'W m-2', "Latent Heat Flux", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["ssrd",],('erai', 'monthly', 'SSWDN', 'W m-2', "Shortwave Down at Surface", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["strd",],('erai', 'monthly', 'SLWDN', 'W m-2', "Longwave Down at Surface", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["ssr",],('erai', 'monthly', 'SSWNT', 'W m-2', "Shortwave Net at Surface", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["str",],('erai', 'monthly', 'SLWNT', 'W m-2', "Longwave Net at Surface", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["tisr",],('erai', 'monthly', 'TSWDN', 'W m-2', "Shortwave Down at TOA", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["tsr",],('erai', 'monthly', 'TSWNT', 'W m-2', "Shortwave Net at TOA", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["ttr",],('erai', 'monthly', 'TLWNT', 'W m-2', "Longwave Net at TOA", deaccumulate_ERAI_forecast),),
+
+        (joblist_create, "^eraI.monthly", ["strc",],('erai', 'monthly', 'SLWNT_CLRSKY', 'W m-2', "Longwave Net at Surface, Clear Sky", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["ssrc",],('erai', 'monthly', 'SSWNT_CLRSKY', 'W m-2', "Shortwave Net at Surface, Clear Sky", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["ttrc",],('erai', 'monthly', 'TLWNT_CLRSKY', 'W m-2', "Longwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["tsrc",],('erai', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
+        
+        (joblist_create, "^eraI.monthly", ["tsrc",],('erai', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
     ]
 
     try:
@@ -453,7 +426,7 @@ def main():
         assert(choice >=0 and choice < len(dispatch_table))
     except:
         print(("Did not understand specified argument. "
-            " Require a number between 0-{0}".format(len(dispatch_table))) )
+            " Require a number between 0-{0}".format(len(dispatch_table)-1)) )
         pprint(list(enumerate(dispatch_table)))
         sys.exit(8)
 
