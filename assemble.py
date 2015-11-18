@@ -69,12 +69,12 @@ def joblist_create(col, name_regex, varNames):
 
 def create_output_file(reanalysis, timeres,
                        field, field_units, field_long_name,
-                       level, latitude, longitude):
+                       level, latitude, longitude, noclobber=True):
     filename = 'reanalysis_clean/{0}.{1}.{2}.nc'.format(reanalysis, timeres,
                                                         field)
     out_fh = netCDF4.Dataset(filename, 'w',
                              format='NETCDF4',
-                             noclobber=True)
+                             noclobber=noclobber)
     out_fh.Conventions = 'CF-1.0'
     out_fh.Dataset = reanalysis
     out_fh.TimeResolution = timeres
@@ -373,8 +373,8 @@ def main():
         (joblist_create, "^merra2.monthly", ["V"],('merra2', 'monthly', 'V', "m s-1", "Meridional Wind")),
         (joblist_create, "^merra2.monthly", ["OMEGA"],('merra2', 'monthly', 'OMEGA', "Pa s-1", "Pressure Velocity")),
 
-        (joblist_create, "^merra2.monthly", ["HFLUX",],('merra2', 'monthly', 'SHF', 'Wm-2', "Sensible Heat Flux"),),
-        (joblist_create, "^merra2.monthly", ["EFLUX",],('merra2', 'monthly', 'LHF', 'Wm-2', "Latent Heat Flux"),),
+        (joblist_create, "^merra2.monthly", ["HFLUX",],('merra2', 'monthly', 'SHF', 'W m-2', "Sensible Heat Flux"),),
+        (joblist_create, "^merra2.monthly", ["EFLUX",],('merra2', 'monthly', 'LHF', 'W m-2', "Latent Heat Flux"),),
         (joblist_create, "^merra2.monthly", ["LWGABCLR",],('merra2', 'monthly', 'SLWAB_CLRSKY', 'W m-2', "Longwave Absorbed at Surface, Clear Sky"),),
         (joblist_create, "^merra2.monthly", ["LWGNTCLR",],('merra2', 'monthly', 'SLWNT_CLRSKY', 'W m-2', "Longwave Net at Surface, Clear Sky"),),
         (joblist_create, "^merra2.monthly", ["LWTUPCLR",],('merra2', 'monthly', 'TLWUP_CLRSKY', 'W m-2', "Longwave Up at TOA, Clear Sky"),),
@@ -416,9 +416,10 @@ def main():
         (joblist_create, "^eraI.monthly", ["strc",],('erai', 'monthly', 'SLWNT_CLRSKY', 'W m-2', "Longwave Net at Surface, Clear Sky", deaccumulate_ERAI_forecast),),
         (joblist_create, "^eraI.monthly", ["ssrc",],('erai', 'monthly', 'SSWNT_CLRSKY', 'W m-2', "Shortwave Net at Surface, Clear Sky", deaccumulate_ERAI_forecast),),
         (joblist_create, "^eraI.monthly", ["ttrc",],('erai', 'monthly', 'TLWNT_CLRSKY', 'W m-2', "Longwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["tsrc",],('erai', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),        
         (joblist_create, "^eraI.monthly", ["tsrc",],('erai', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
-        
-        (joblist_create, "^eraI.monthly", ["tsrc",],('erai', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
+
+        (joblist_create, "^ersst.monthly", ["sst",],('ersst', 'monthly', 'SST', 'K', "Sea Surface Temperature"),),
     ]
 
     try:

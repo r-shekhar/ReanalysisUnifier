@@ -9,11 +9,11 @@ import hashlib
 
 def get_netcdf_filenames():
     j = glob('cfsr*/*/*nc')
-    # j.extend(glob('cmap*/*nc'))
-    # j.extend(glob('era*/*nc'))
-    # j.extend(glob('gp*/*nc'))
-    # j.extend(glob('merra*/*nc'))
-    # j.extend(glob('trmm*/*nc'))
+    j.extend(glob('cmap*/*nc'))
+    j.extend(glob('era*/*nc'))
+    j.extend(glob('gp*/*nc'))
+    j.extend(glob('merra*/*nc'))
+    j.extend(glob('trmm*/*nc'))
     j.extend(glob('ersst*/*nc'))
     return j
 
@@ -101,8 +101,8 @@ def main():
         filedict['_id'] = hashlib.sha512(f).hexdigest()
         # filedict['filecontent_md5'] = hashlib.md5(open(f, 'r').read()).hexdigest()
 
-#        print(json.dumps(filedict, sort_keys=True, indent='    '))
-        print(filedict)
+        #print(filedict)
+
 
         client = pymongo.MongoClient()
         db = client.rawdata
