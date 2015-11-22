@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 import netCDF4
-import shutil
+#import shutil
 
 from assemble import create_output_file
 
@@ -27,16 +27,17 @@ def calc_CFSR_net(var1, var2, new_name, new_description):
                                 fh_in_1.variables['longitude'][:],
                                 noclobber=False)
     fh_out.variables[new_name][:] = fh_in_1[var1][:] - fh_in_2[var2][:]
+    fh_out.variables['time'][:] = fh_in_1['time'][:]
     fh_out.close()
     fh_in_1.close()
     fh_in_2.close()
 
-    shutil.move('reanalysis_clean/cfsr.monthly.{0}.nc'.format(var1),
-                'reanalysis_clean/_unused_cfsr.monthly.{0}.nc.bak'.format(var1)
-                )
-    shutil.move('reanalysis_clean/cfsr.monthly.{0}.nc'.format(var2),
-                'reanalysis_clean/_unused_cfsr.monthly.{0}.nc.bak'.format(var2)
-                )
+#    shutil.move('reanalysis_clean/cfsr.monthly.{0}.nc'.format(var1),
+#                'reanalysis_clean/_unused_cfsr.monthly.{0}.nc.bak'.format(var1)
+#                )
+#    shutil.move('reanalysis_clean/cfsr.monthly.{0}.nc'.format(var2),
+#                'reanalysis_clean/_unused_cfsr.monthly.{0}.nc.bak'.format(var2)
+#                )
 
 
 def calc_ERAI_rename_flipsign(var1, new_name, new_description):
@@ -53,12 +54,12 @@ def calc_ERAI_rename_flipsign(var1, new_name, new_description):
                                 fh_in_1.variables['longitude'][:],
                                 noclobber=False)
     fh_out.variables[new_name][:] = -1.0 * fh_in_1[var1][:]
+    fh_out.variables['time'][:] = fh_in_1['time'][:]
     fh_out.close()
     fh_in_1.close()
-    shutil.move('reanalysis_clean/erai.monthly.{0}.nc'.format(var1),
-                'reanalysis_clean/_unused_erai.monthly.{0}.nc.bak'.format(var1))
-                )    
-
+#    shutil.move('reanalysis_clean/erai.monthly.{0}.nc'.format(var1),
+#                'reanalysis_clean/_unused_erai.monthly.{0}.nc.bak'.format(var1)
+#                )    
 
 def main():
     print("Fixing CFSR.")
