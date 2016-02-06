@@ -26,7 +26,10 @@ def joblist_create(col, name_regex, varNames):
     print("Querying database for {0} {1}".format(name_regex, ' '.join(varNames)))
     q = {}
     q['filename_on_disk'] = {"$regex": name_regex}
-    q['varnames'] = {"$in": varNames}
+
+    VarNames = [x.replace('.', '|') for x in varNames]
+
+    q['varnames'] = {"$in": VarNames}
 
     filenames = []
     datetimes = []
@@ -44,14 +47,18 @@ def joblist_create(col, name_regex, varNames):
         indices.extend(list(range(n)))
 
         #assuming more than one variable from varNames isn't in a file
-        for v in varNames:
-            if v in j['variables']:
+        for v,v2 in zip(varNames,VarNames):
+            # print(j['variables'].keys())
+            # print(v)
+            if v2 in j['variables']:
                 # print(v)
                 variables.extend([v]*n)
         i += 1
     
     d = {'filenames': filenames, 'datetimes': datetimes, 'indices': indices,
          'variables': variables}
+         
+    # pprint(d)
     df = pd.DataFrame(d)
     df = df.sort_values(by='datetimes')
 
@@ -75,7 +82,7 @@ def create_output_file(reanalysis, timeres,
     out_fh = netCDF4.Dataset(filename, 'w',
                              format='NETCDF4',
                              noclobber=noclobber)
-    out_fh.Conventions = 'CF-1.0'
+    out_fh.Conventions = 'CF-1.5'
     out_fh.Dataset = reanalysis
     out_fh.TimeResolution = timeres
     out_fh.createDimension("time", None)
@@ -88,9 +95,12 @@ def create_output_file(reanalysis, timeres,
         out_fh.createDimension("level", len(level))
         level_coord = out_fh.createVariable("level", 'f4', ('level',),
                                             zlib=True, complevel=1)
-        level_coord.units = 'Pa'
+        level_coord.units = 'hPa'
         level_coord.axis = 'Z'
-        level_coord[:] = level
+        if np.max(level) > 2000.:
+            level_coord[:] = level / 100.
+        else:
+            level_coord[:] = level
         coord_tuple = ("time", "level", "latitude", "longitude")
 
     time = out_fh.createVariable('time', 'f4', ('time',),
@@ -167,7 +177,8 @@ def glue_joblist_into_data(joblist, reanalysis, timeres,
 
 
 def glue_joblist_into_monthly_data(joblist, reanalysis, timeres,
-                           field, field_units, field_long_name, deaccumulate=None):
+                           field, field_units, field_long_name, 
+                           deaccumulate=None):
     # could use multiprocessing easily, but seems to cause memory issues
     # better off not using it. Parallelize by extracting multiple variables
     # in separate python processes
@@ -193,6 +204,7 @@ def glue_joblist_into_monthly_data(joblist, reanalysis, timeres,
                           end_datetime.year, end_datetime.month+2))
 
     data_file_initialized = False
+    adjusted_units = "m" if (field_units == 'm2 s-2') else field_units
 
     for i in range(len(ymi)-1):
         print(ymi[i])
@@ -213,12 +225,12 @@ def glue_joblist_into_monthly_data(joblist, reanalysis, timeres,
             if len(coord_arrays) == 2:
                 lat, lon = coord_arrays
                 fh = create_output_file(reanalysis, timeres,
-                                        field, field_units, field_long_name,
+                                        field, adjusted_units, field_long_name,
                                         None, *coord_arrays)
             elif len(coord_arrays) == 3:
                 lev, lat, lon = coord_arrays
                 fh = create_output_file(reanalysis, timeres,
-                                        field, field_units, field_long_name,
+                                        field, adjusted_units, field_long_name,
                                         *coord_arrays)
             else:
                 print("Don't understand coordinate system.")
@@ -264,6 +276,9 @@ def glue_joblist_into_monthly_data(joblist, reanalysis, timeres,
 
         fh.variables['time'][i] = netCDF4.date2num( ymi[i],
             units=fh.variables['time'].units)
+        if field_units == 'm2 s-2':
+            data /= 9.81
+
         fh.variables[field][i] = data
 
     fh.close()
@@ -363,7 +378,7 @@ def main():
 
         #--------------------- MERRA 2 -------------------------------------------------------------
 
-        (joblist_create, "^merra2.monthly", ["H"],('merra2', 'monthly', 'GHT', "gpm", "Geopotential Height")),
+        (joblist_create, "^merra2.monthly", ["H"],('merra2', 'monthly', 'GHT', "m", "Geopotential Height")),
         (joblist_create, "^merra2.monthly", ["PHIS"],('merra2', 'monthly', 'GHT_SURF', "m-2 s-2", "Geopotential Height At Surface")),        
         (joblist_create, "^merra2.monthly", ["PS"],('merra2', 'monthly', 'PSFC', "Pa", "Surface Pressure")),
         (joblist_create, "^merra2.monthly", ["SLP"],('merra2', 'monthly', 'MSLP', "Pa", "Pressure at Mean Sea Level")),
@@ -393,7 +408,7 @@ def main():
 
         #--------------------- ERA Interim ---------------------------------------------------------
 
-        (joblist_create, "^eraI.monthly", ["z"],('erai', 'monthly', 'GHT', "m-2 s-2", "Geopotential Height")),
+        (joblist_create, "^eraI.monthly", ["z"],('erai', 'monthly', 'GHT', "m2 s-2", "Geopotential Height")),
         # (joblist_create, "^eraI.monthly", ["PHIS"],('eraI', 'monthly', 'GHT_SURF', "m-2 s-2", "Geopotential Height At Surface")),        
         (joblist_create, "^eraI.monthly", ["sp"],('erai', 'monthly', 'PSFC', "Pa", "Surface Pressure")),
         (joblist_create, "^eraI.monthly", ["msl"],('erai', 'monthly', 'MSLP', "Pa", "Pressure at Mean Sea Level")),
@@ -402,6 +417,23 @@ def main():
         (joblist_create, "^eraI.monthly", ["u"],('erai', 'monthly', 'U', "m s-1", "Zonal Wind")),
         (joblist_create, "^eraI.monthly", ["v"],('erai', 'monthly', 'V', "m s-1", "Meridional Wind")),
         (joblist_create, "^eraI.monthly", ["w"],('erai', 'monthly', 'OMEGA', "Pa s-1", "Pressure Velocity")),
+        
+        (joblist_create, "^eraI.monthly", ["vo"],('erai', 'monthly', 'MODEL_VORTICITY', "s-1", "Relative Vorticity")),
+        (joblist_create, "^eraI.monthly", ["d"],('erai', 'monthly', 'MODEL_DIVERGENCE', "s-1", "Divergence")),
+        
+        (joblist_create, "^eraI.monthly", ["p65.162"],('erai', 'monthly', 'EASTWARD_MASS_FLUX', "kg m-1 s-1", "Vertical Integral of Eastward Mass Flux")),
+        (joblist_create, "^eraI.monthly", ["p66.162"],('erai', 'monthly', 'NORTHWARD_MASS_FLUX', "kg m-1 s-1", "Vertical Integral of Northward Mass Flux")),
+        (joblist_create, "^eraI.monthly", ["p69.162"],('erai', 'monthly', 'EASTWARD_HEAT_FLUX', "W m-1", "Vertical Integral of Eastward Mass Flux")),
+        (joblist_create, "^eraI.monthly", ["p70.162"],('erai', 'monthly', 'NORTHWARD_HEAT_FLUX', "W m-1", "Vertical Integral of Northward Mass Flux")),
+        (joblist_create, "^eraI.monthly", ["p71.162"],('erai', 'monthly', 'EASTWARD_WATERVAPOR_FLUX', "kg m-1 s-1", "Vertical Integral of Eastward Water Vapor Flux")),
+        (joblist_create, "^eraI.monthly", ["p72.162"],('erai', 'monthly', 'NORTHWARD_WATERVAPOR_FLUX', "kg m-1 s-1", "Vertical Integral of Northward Water Vapor Flux")),
+        (joblist_create, "^eraI.monthly", ["p73.162"],('erai', 'monthly', 'EASTWARD_GHT_FLUX', "W m-1", "Vertical Integral of Eastward Geopotential Flux")),
+        (joblist_create, "^eraI.monthly", ["p74.162"],('erai', 'monthly', 'NORTHWARD_GHT_FLUX', "W m-1", "Vertical Integral of Northward Geopotential Flux")),
+        
+        (joblist_create, "^eraI.monthly", ["p81.162"],('erai', 'monthly', 'DIV_MASS_FLUX', "kg m-2 s-1", "Vertical Integral of Divergence of Mass Flux")),
+        (joblist_create, "^eraI.monthly", ["p83.162"],('erai', 'monthly', 'DIV_HEAT_FLUX', "W m-2", "Vertical Integral of Divergence of Heat Flux")),
+        (joblist_create, "^eraI.monthly", ["p84.162"],('erai', 'monthly', 'DIV_WATERVAPOR_FLUX', "kg m-2 s-1", "Vertical Integral of Divergence of Water Vapor Flux")),
+        (joblist_create, "^eraI.monthly", ["p85.162"],('erai', 'monthly', 'DIV_GHT_FLUX', "W m-2", "Vertical Integral of Divergence of Geopotential Flux")),        
 
         (joblist_create, "^eraI.monthly", ["sshf",],('erai', 'monthly', 'SHF', 'W m-2', "Sensible Heat Flux", deaccumulate_ERAI_forecast),),
         (joblist_create, "^eraI.monthly", ["slhf",],('erai', 'monthly', 'LHF', 'W m-2', "Latent Heat Flux", deaccumulate_ERAI_forecast),),
@@ -418,6 +450,10 @@ def main():
         (joblist_create, "^eraI.monthly", ["ttrc",],('erai', 'monthly', 'TLWNT_CLRSKY', 'W m-2', "Longwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
         (joblist_create, "^eraI.monthly", ["tsrc",],('erai', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),        
         (joblist_create, "^eraI.monthly", ["tsrc",],('erai', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
+        
+        (joblist_create, "^eraI.monthly", ["tp",],('erai', 'monthly', 'PRECIP', 'm', "Precipitation. meters per 6 hours.", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["e",],('erai', 'monthly', 'EVAP', 'm', "Evaporation. meters per 6 hours.", deaccumulate_ERAI_forecast),),
+        
 
         (joblist_create, "^ersst.monthly", ["sst",],('ersst', 'monthly', 'SST', 'K', "Sea Surface Temperature"),),
     ]

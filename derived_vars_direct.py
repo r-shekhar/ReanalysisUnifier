@@ -47,11 +47,11 @@ def apply_linear_formula(outvar, formula):
 
     # per_timestep_size = np.product(shape0[1:])
 
-    # # we aim for a chunk size of 16MB per variable. 
+    # # we aim for a chunk size of 16MB per variable.
     # # 2**22 is 4M, 4 bytes/value
     # stride = max(int(2**22/per_timestep_size/4), 1)
 
-    # N_strides = int(shape0[0] / stride) 
+    # N_strides = int(shape0[0] / stride)
     # if shape0[0] % stride != 0:
     #     N_strides += 1
     # coeffs = np.array([f[0] for f in formula], dtype=np.float32)
@@ -75,7 +75,7 @@ def apply_linear_formula(outvar, formula):
 
     # For some reason the strided code seems to produce inconsistent results.
     # Some runs work fine, a repeated invocation produces garbage results.
-    # Maybe some sort of multithreaded race condition? This code actually 
+    # Maybe some sort of multithreaded race condition? This code actually
     # performs much better. Different multithreaded code is called internally
     #  within the BLAS library, but it works out better.
 
@@ -93,6 +93,7 @@ def calc_derived(reanal, dsets, data):
     """Do all the calculations here."""
 
     print("Starting reanalysis {0}".format(reanal))
+    
     fh = clone_netcdf_skeleton(reanal, dsets, "LHF", "COL_MSE_SRC",
                                "Column MSE Source", "W m-2")
     apply_linear_formula(fh['COL_MSE_SRC'], formula=(
@@ -283,8 +284,6 @@ def calc_derived(reanal, dsets, data):
                                "Moist Static Energy",
                                "J kg-1")
     g_effective = atmos_thermo.cearth.g
-    if data['GHT'].units == "m-2 s-2":
-        g_effective = 1.  # g already in Geopotential
     apply_linear_formula(fh['MSE'],
                          formula=((atmos_thermo.catmos.C_pd, data['T']),
                                   (atmos_thermo.catmos.Lv0, data['SPHUM']),
@@ -293,6 +292,7 @@ def calc_derived(reanal, dsets, data):
                          )
     fh.close()
 
+    
     # data['MSE'] = atmos_thermo.h_from_r_T_z(data['SPHUM'], data['T'],
     #                                         data['GHT'])
 
@@ -302,7 +302,7 @@ def calc_derived(reanal, dsets, data):
         pressure_levels *= 100  # fix units.
 
     rsat = atmos_thermo.r_from_e_p(atmos_thermo.esat_from_T(data['T'][:]),
-                      pressure_levels[None, :, None, None])
+                                   pressure_levels[None, :, None, None])
 
     fh = clone_netcdf_skeleton(reanal, dsets, "GHT",
                                "MSE_SATURATED",
