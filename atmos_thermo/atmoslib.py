@@ -3,7 +3,6 @@
 from .constant import atmos as catmos
 from .constant import earth as cearth
 import numpy
-import xray.ufuncs as xu
 
 
 def esat_from_T(T):
@@ -19,8 +18,8 @@ def esat_from_T(T):
     Returns:
         Saturation vapor pressure (esat) in units of Pa.'''
 
-    log_esat = 53.67957 - (6743.769 / T) - (4.8451 * xu.log(T))
-    return xu.exp(log_esat) * 100.0
+    log_esat = 53.67957 - (6743.769 / T) - (4.8451 * numpy.log(T))
+    return numpy.exp(log_esat) * 100.0
 
 
 def q_from_r(r):
@@ -243,9 +242,9 @@ def moist_specific_entropy_from_r_p_T(r, p, T):
     e = e_from_r_p(r, p) #vapor pressure of water vapor
     p_dry = p - e # dry vapor pressure
 
-    term0 = (Cpd + r * Cpv) * xu.log(T/T_R)
-    term1 = R_d * xu.log(p_dry/P_R)
-    term2 = r * R_v * xu.log(e/e_sf)
+    term0 = (Cpd + r * Cpv) * numpy.log(T/T_R)
+    term1 = R_d * numpy.log(p_dry/P_R)
+    term2 = r * R_v * numpy.log(e/e_sf)
     term3 = Lv * r/T_R
 
     return (term0 - term1 - term2 + term3)
@@ -278,10 +277,10 @@ def moist_specific_entropy_Emanuel_from_r_p_T(r, p, T,
     pd = p - e  # dry pressure
     C_p_total = (catmos.C_pd + catmos.C_pv * r_t)
 
-    term0 = C_p_total * xu.log(T)
-    term1 = catmos.R_d * xu.log(pd)
+    term0 = C_p_total * numpy.log(T)
+    term1 = catmos.R_d * numpy.log(pd)
     term2 = Lv * r / T
-    term3 = r * catmos.R_v * xu.log(e / esat)
+    term3 = r * catmos.R_v * numpy.log(e / esat)
 
     return (term0 - term1 + term2 - term3)
 
@@ -313,8 +312,8 @@ def moist_specific_entropy_Emanuel_sat_from_p_T(p, T, r_rain=0,
     pd = p - esat  # dry pressure
     C_p_total = (catmos.C_pd + catmos.C_pv * r_t)
 
-    term0 = C_p_total * xu.log(T)
-    term1 = catmos.R_d * xu.log(pd)
+    term0 = C_p_total * numpy.log(T)
+    term1 = catmos.R_d * numpy.log(pd)
     term2 = Lv * r / T
 
     return (term0 - term1 + term2)
@@ -344,10 +343,10 @@ def thetae_Bolton_from_r_p_T(r, p, T, p0=100000, r_rain=0., r_cloud=0.
     Returns:
         Pseudoadibatic equivalent potential temperature in Kelvin'''
     e = e_from_r_p(r, p)
-    T_star = 2840. / (3.5 * xu.log(T) - xu.log(e) - 4.805) + 55.
+    T_star = 2840. / (3.5 * numpy.log(T) - numpy.log(e) - 4.805) + 55.
 
     theta_ep = T * (p0 / p) ** (0.2854 * (1 - 0.28 * r))
-    theta_ep *= xu.exp(r * (1. + 0.81 * r) * (3376. / T_star - 2.54))
+    theta_ep *= numpy.exp(r * (1. + 0.81 * r) * (3376. / T_star - 2.54))
 
     return theta_ep
 
@@ -379,7 +378,7 @@ def thetae_from_r_p_T(r, p, T, p0=100000, r_cloud=0.):
 
     pot_temp = T * (p0 / pd) ** (catmos.R_d / C_p_total)
     humid_term = (e / esat) ** (- r * (catmos.R_v / C_p_total))
-    latent_term = xu.exp(Lv * r / (C_p_total * T))
+    latent_term = numpy.exp(Lv * r / (C_p_total * T))
 
     return pot_temp * humid_term * latent_term
 

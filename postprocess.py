@@ -2,7 +2,10 @@
 
 from __future__ import print_function
 import netCDF4
+import os.path, os
+import numpy as np
 #import shutil
+import multiprocessing
 
 from assemble import create_output_file
 
@@ -59,9 +62,47 @@ def calc_ERAI_rename_flipsign(var1, new_name, new_description):
     fh_in_1.close()
 #    shutil.move('reanalysis_clean/erai.monthly.{0}.nc'.format(var1),
 #                'reanalysis_clean/_unused_erai.monthly.{0}.nc.bak'.format(var1)
-#                )    
+#                )
+
+
+def fix_below_ground(reanal, field):
+    fn = 'reanalysis_clean/{0}.monthly.{1}.nc'.format(reanal, field)
+    fn_psfc = 'reanalysis_clean/{0}.monthly.{1}.nc'.format(reanal, 'PSFC')
+    if not os.path.isfile(fn):
+        return
+
+    fh_psfc = netCDF4.Dataset(fn_psfc, 'r')
+    fh = netCDF4.Dataset(fn, 'a')
+    if not (hasattr(fh.variables[field], 'postprocessed')):
+        #should be TYX dimensions
+        psfc = fh_psfc.variables['PSFC']
+
+        #should be TZYX dimensions
+        v = fh.variables[field]
+
+        #should be Z dimension
+        levels_arr = fh.variables['level'][:]
+
+        assert(v.ndim == 4)
+        assert(np.max(levels_arr) < 1500.)
+        assert(np.max(psfc[0]) > 100000.)
+
+        for i in range(psfc.shape[0]):
+            # below ground
+            k = ((levels_arr[:, None, None]*100.) > ((psfc[i])[None, :, :]))
+            #print((np.sum(k),np.product(k.shape)))
+            vi = v[i]
+            vi[k] = netCDF4.default_fillvals['f4']
+            v[i] = vi
+
+        fh.variables[field].postprocessed = "True"
+    fh.close()
+    fh_psfc.close()
+    print("{0} {1} fixed.".format(reanal, field))
+
 
 def main():
+
     print("Fixing CFSR.")
     calc_CFSR_net("SLWDN", "SLWUP", "SLWNT", "Longwave Net at Surface")
     calc_CFSR_net("SSWDN", "SSWUP", "SSWNT", "Shortwave Net at Surface")
@@ -93,8 +134,21 @@ def main():
     calc_ERAI_rename_flipsign("TLWNT", "TLWUP", "Longwave Up at TOA")
     calc_ERAI_rename_flipsign("TLWNT_CLRSKY", "TLWUP_CLRSKY",
                               "Longwave Up at TOA, Clear Sky")
+    print("Sign flips and renames done")
 
-    print("All Done")
+    fieldList = ('GHT', 'SPHUM', 'T', 'U', 'V', 'OMEGA',
+                 'MODEL_VORTICITY', 'MODEL_DIVERGENCE')
+
+    p = multiprocessing.Pool(8)
+
+    for reanal in ('cfsr', 'erai'):
+        for field in fieldList:
+            p.apply_async(fix_below_ground, (reanal, field))
+
+    p.close()
+    p.join()
+    del p
+    print("All done")
 
 
 if __name__ == '__main__':

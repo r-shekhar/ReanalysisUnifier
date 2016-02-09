@@ -14,6 +14,7 @@ def get_netcdf_filenames():
     j.extend(glob('gp*/*nc'))
     j.extend(glob('merra*/*nc'))
     j.extend(glob('trmm*/*nc'))
+    j.extend(glob('cmip*/*nc'))
     j.extend(glob('ersst*/*nc'))
     return j
 
