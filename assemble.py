@@ -455,8 +455,8 @@ def main():
         (joblist_create, "^eraI.monthly", ["tsrc",], ('erai', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
         (joblist_create, "^eraI.monthly", ["tsrc",], ('erai', 'monthly', 'TSWNT_CLRSKY', 'W m-2', "Shortwave Net at TOA, Clear Sky", deaccumulate_ERAI_forecast),),
 
-        (joblist_create, "^eraI.monthly", ["tp",], ('erai', 'monthly', 'PRECIP', 'm', "Precipitation. meters per 6 hours.", deaccumulate_ERAI_forecast),),
-        (joblist_create, "^eraI.monthly", ["e",], ('erai', 'monthly', 'EVAP', 'm', "Evaporation. meters per 6 hours.", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["tp",], ('erai', 'monthly', 'PRECIP', 'm', "Precipitation. meters per 3 hours.", deaccumulate_ERAI_forecast),),
+        (joblist_create, "^eraI.monthly", ["e",], ('erai', 'monthly', 'EVAP', 'm', "Evaporation. meters per 3 hours.", deaccumulate_ERAI_forecast),),
 
         (joblist_create, "^ersst.monthly", ["sst",], ('ersst', 'monthly', 'SST', 'K', "Sea Surface Temperature"),),
         

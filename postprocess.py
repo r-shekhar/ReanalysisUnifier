@@ -70,6 +70,8 @@ def fix_below_ground(reanal, field):
     fn_psfc = 'reanalysis_clean/{0}.monthly.{1}.nc'.format(reanal, 'PSFC')
     if not os.path.isfile(fn):
         return
+    if field == 'GHT':
+        return
 
     fh_psfc = netCDF4.Dataset(fn_psfc, 'r')
     fh = netCDF4.Dataset(fn, 'a')
@@ -130,6 +132,22 @@ def main():
         fh.variables['SHF'].postprocessed = "True"
     fh.close()
     print("SHF Fixed")
+
+    fh = netCDF4.Dataset('reanalysis_clean/erai.monthly.EVAP.nc', 'a')
+    if not (hasattr(fh.variables['EVAP'], 'postprocessed')):
+        fh.variables['EVAP'][:] = 8.64e7 * (fh.variables['EVAP'][:])
+        fh.variables['EVAP'].units = "mm day-1"
+        fh.variables['EVAP'].postprocessed = "True"
+    fh.close()
+    print("EVAP fixed.")
+
+    fh = netCDF4.Dataset('reanalysis_clean/erai.monthly.PRECIP.nc', 'a')
+    if not (hasattr(fh.variables['PRECIP'], 'postprocessed')):
+        fh.variables['PRECIP'][:] = 8.64e7 * (fh.variables['PRECIP'][:])
+        fh.variables['PRECIP'].units = "mm day-1"
+        fh.variables['PRECIP'].postprocessed = "True"
+    fh.close()
+    print("PRECIP fixed.")
 
     calc_ERAI_rename_flipsign("TLWNT", "TLWUP", "Longwave Up at TOA")
     calc_ERAI_rename_flipsign("TLWNT_CLRSKY", "TLWUP_CLRSKY",
