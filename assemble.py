@@ -106,7 +106,7 @@ def create_output_file(reanalysis, timeres,
 
     time = out_fh.createVariable('time', 'f4', ('time',),
                                  zlib=True, complevel=1)
-    time.units = "hours since 1970-1-1"
+    time.units = "hours since 1930-1-1"
     time.standard_name = 'time'
     time.axis = 'T'
 
@@ -392,6 +392,9 @@ def main():
         (joblist_create, "^merra2.monthly", ["V"], ('merra2', 'monthly', 'V', "m s-1", "Meridional Wind")),
         (joblist_create, "^merra2.monthly", ["OMEGA"], ('merra2', 'monthly', 'OMEGA', "Pa s-1", "Pressure Velocity")),
 
+        (joblist_create, "^merra2.monthly", ["EVAP",], ('merra2', 'monthly', 'EVAP', 'kg m-2 s-1', "Evaporation"),),
+        (joblist_create, "^merra2.monthly", ["PRECTOT",], ('merra2', 'monthly', 'PRECIP', 'kg m-2 s-1', "Precipitation"),),
+        (joblist_create, "^merra2.monthly", ["PRECTOTCORR",], ('merra2', 'monthly', 'PRECIP_BC', 'kg m-2 s-1', "Precipitation Bias Corrected"),),                
         (joblist_create, "^merra2.monthly", ["HFLUX",], ('merra2', 'monthly', 'SHF', 'W m-2', "Sensible Heat Flux"),),
         (joblist_create, "^merra2.monthly", ["EFLUX",], ('merra2', 'monthly', 'LHF', 'W m-2', "Latent Heat Flux"),),
         (joblist_create, "^merra2.monthly", ["LWGABCLR",], ('merra2', 'monthly', 'SLWAB_CLRSKY', 'W m-2', "Longwave Absorbed at Surface, Clear Sky"),),
@@ -462,25 +465,124 @@ def main():
         
         #--------------------- CMIP5 runs ---------------------------------------------------------
 
-        # joblist_create     #regex matching files with this var       #var name in files   # new prefix               #timefreq   #new name    #units        # new description
-        (joblist_create, "^cmip5.hfls.Amon.GFDL.ESM2G.historical.r1i1p1",  ["hfls",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'LHF',        'W m-2',      "Latent Heat Flux"),),
-        (joblist_create, "^cmip5.hfss.Amon.GFDL.ESM2G.historical.r1i1p1",  ["hfss",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'SHF',        'W m-2',      "Sensible Heat Flux"),),
-        (joblist_create, "^cmip5.hurs.Amon.GFDL.ESM2G.historical.r1i1p1",  ["hurs",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'RH_SURF',    '%',          "Near Surface Relative Humidity"),),
-        (joblist_create, "^cmip5.hus.Amon.GFDL.ESM2G.historical.r1i1p1",   ["hus",],   ('cmip5.gfdl.esm2g.historical', 'monthly', 'SPHUM',      'kg kg-1',    "Specific Humidity"),),
-        (joblist_create, "^cmip5.huss.Amon.GFDL.ESM2G.historical.r1i1p1",  ["huss",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'SPHUM_SURF', 'kg kg-1',    "Near Surface Specific Humidity"),),
-        (joblist_create, "^cmip5.mrsos.Lmon.GFDL.ESM2G.historical.r1i1p1", ["mrsos",], ('cmip5.gfdl.esm2g.historical', 'monthly', 'SOILMOIST',  'kg m-2',     "Soil Moisture in Upper Soil Column"),),
-        (joblist_create, "^cmip5.pr.Amon.GFDL.ESM2G.historical.r1i1p1",    ["pr",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'PRECIP',     'kg m-2 s-1', "Precipitation"),),
-        (joblist_create, "^cmip5.ps.Amon.GFDL.ESM2G.historical.r1i1p1",    ["ps",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'PSFC',       'Pa',         "Surface Pressure"),),
-        (joblist_create, "^cmip5.rlds.Amon.GFDL.ESM2G.historical.r1i1p1",  ["rlds",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'SLWDN',      'W m-2',      "Longwave Down at Surface"),),
-        (joblist_create, "^cmip5.rlus.Amon.GFDL.ESM2G.historical.r1i1p1",  ["rlus",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'SLWUP',      'W m-2',      "Longwave Up at Surface"),),
-        (joblist_create, "^cmip5.ta.Amon.GFDL.ESM2G.historical.r1i1p1",    ["ta",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'T',          'K',          "Air Temperature"),),
-        (joblist_create, "^cmip5.tas.Amon.GFDL.ESM2G.historical.r1i1p1",   ["tas",],   ('cmip5.gfdl.esm2g.historical', 'monthly', 'T_SURF',     'K',          "Near Surface Air Temperature"),),
-        (joblist_create, "^cmip5.ua.Amon.GFDL.ESM2G.historical.r1i1p1",    ["ua",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'U',          'm s-1',      "Zonal Wind"),),
-        (joblist_create, "^cmip5.va.Amon.GFDL.ESM2G.historical.r1i1p1",    ["va",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'V',          'm s-1',      "Meridional Wind"),),
-        (joblist_create, "^cmip5.wap.Amon.GFDL.ESM2G.historical.r1i1p1",   ["wap",],   ('cmip5.gfdl.esm2g.historical', 'monthly', 'OMEGA',      'Pa s-1',     "Pressure Velocity"),),
-        (joblist_create, "^cmip5.zg.Amon.GFDL.ESM2G.historical.r1i1p1",    ["zg",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'GHT',        'm',          "Geopotential Height"),),
-                  
+        #joblist_create     #regex matching files with this var       #var name in files   # new prefix               #timefreq   #new name    #units        # new description
+        # (joblist_create, "^cmip5.hfls.Amon.GFDL.ESM2G.historical.r1i1p1",  ["hfls",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'LHF',        'W m-2',      "Latent Heat Flux"),),
+        # (joblist_create, "^cmip5.hfss.Amon.GFDL.ESM2G.historical.r1i1p1",  ["hfss",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'SHF',        'W m-2',      "Sensible Heat Flux"),),
+        # (joblist_create, "^cmip5.hurs.Amon.GFDL.ESM2G.historical.r1i1p1",  ["hurs",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'RH_SURF',    '%',          "Near Surface Relative Humidity"),),
+        # (joblist_create, "^cmip5.hus.Amon.GFDL.ESM2G.historical.r1i1p1",   ["hus",],   ('cmip5.gfdl.esm2g.historical', 'monthly', 'SPHUM',      'kg kg-1',    "Specific Humidity"),),
+        # (joblist_create, "^cmip5.huss.Amon.GFDL.ESM2G.historical.r1i1p1",  ["huss",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'SPHUM_SURF', 'kg kg-1',    "Near Surface Specific Humidity"),),
+        # (joblist_create, "^cmip5.mrsos.Lmon.GFDL.ESM2G.historical.r1i1p1", ["mrsos",], ('cmip5.gfdl.esm2g.historical', 'monthly', 'SOILMOIST',  'kg m-2',     "Soil Moisture in Upper Soil Column"),),
+        # (joblist_create, "^cmip5.pr.Amon.GFDL.ESM2G.historical.r1i1p1",    ["pr",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'PRECIP',     'kg m-2 s-1', "Precipitation"),),
+        # (joblist_create, "^cmip5.ps.Amon.GFDL.ESM2G.historical.r1i1p1",    ["ps",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'PSFC',       'Pa',         "Surface Pressure"),),
+        # (joblist_create, "^cmip5.rlds.Amon.GFDL.ESM2G.historical.r1i1p1",  ["rlds",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'SLWDN',      'W m-2',      "Longwave Down at Surface"),),
+        # (joblist_create, "^cmip5.rlus.Amon.GFDL.ESM2G.historical.r1i1p1",  ["rlus",],  ('cmip5.gfdl.esm2g.historical', 'monthly', 'SLWUP',      'W m-2',      "Longwave Up at Surface"),),
+        # (joblist_create, "^cmip5.ta.Amon.GFDL.ESM2G.historical.r1i1p1",    ["ta",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'T',          'K',          "Air Temperature"),),
+        # (joblist_create, "^cmip5.tas.Amon.GFDL.ESM2G.historical.r1i1p1",   ["tas",],   ('cmip5.gfdl.esm2g.historical', 'monthly', 'T_SURF',     'K',          "Near Surface Air Temperature"),),
+        # (joblist_create, "^cmip5.ua.Amon.GFDL.ESM2G.historical.r1i1p1",    ["ua",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'U',          'm s-1',      "Zonal Wind"),),
+        # (joblist_create, "^cmip5.va.Amon.GFDL.ESM2G.historical.r1i1p1",    ["va",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'V',          'm s-1',      "Meridional Wind"),),
+        # (joblist_create, "^cmip5.wap.Amon.GFDL.ESM2G.historical.r1i1p1",   ["wap",],   ('cmip5.gfdl.esm2g.historical', 'monthly', 'OMEGA',      'Pa s-1',     "Pressure Velocity"),),
+        # (joblist_create, "^cmip5.zg.Amon.GFDL.ESM2G.historical.r1i1p1",    ["zg",],    ('cmip5.gfdl.esm2g.historical', 'monthly', 'GHT',        'm',          "Geopotential Height"),),
+        
     ]
+
+    # obtained with `ls zg* --color=none |cut -f1-5 -d_ |uniq`
+    cmip5_list = """
+        zg_Amon_ACCESS1-0_historical_r1i1p1
+        zg_Amon_ACCESS1-3_historical_r1i1p1
+        zg_Amon_bcc-csm1-1_historical_r1i1p1
+        zg_Amon_bcc-csm1-1-m_historical_r1i1p1
+        zg_Amon_BNU-ESM_historical_r1i1p1
+        zg_Amon_CanCM4_historical_r1i1p1
+        zg_Amon_CanESM2_historical_r1i1p1
+        zg_Amon_CanESM2_rcp85_r1i1p1
+        zg_Amon_CCSM4_historical_r1i1p1
+        zg_Amon_CESM1-BGC_historical_r1i1p1
+        zg_Amon_CESM1-CAM5_historical_r1i1p1
+        zg_Amon_CESM1-FASTCHEM_historical_r1i1p1
+        zg_Amon_CESM1-WACCM_historical_r1i1p1
+        zg_Amon_CMCC-CESM_historical_r1i1p1
+        zg_Amon_CMCC-CM_historical_r1i1p1
+        zg_Amon_CMCC-CMS_historical_r1i1p1
+        zg_Amon_CNRM-CM5-2_historical_r1i1p1
+        zg_Amon_CNRM-CM5_historical_r1i1p1
+        zg_Amon_CSIRO-Mk3-6-0_historical_r1i1p1
+        zg_Amon_FGOALS-g2_historical_r1i1p1
+        zg_Amon_FIO-ESM_historical_r1i1p1
+        zg_Amon_GFDL-CM2p1_historical_r1i1p1
+        zg_Amon_GFDL-CM3_historical_r1i1p1
+        zg_Amon_GFDL-CM3_rcp85_r1i1p1
+        zg_Amon_GFDL-ESM2G_historical_r1i1p1
+        zg_Amon_GFDL-ESM2M_historical_r1i1p1
+        zg_Amon_GISS-E2-H-CC_historical_r1i1p1
+        zg_Amon_GISS-E2-H_historical_r1i1p1
+        zg_Amon_GISS-E2-R-CC_historical_r1i1p1
+        zg_Amon_GISS-E2-R_historical_r1i1p1
+        zg_Amon_HadCM3_historical_r1i1p1
+        zg_Amon_HadGEM2-AO_historical_r1i1p1
+        zg_Amon_HadGEM2-CC_historical_r1i1p1
+        zg_Amon_HadGEM2-ES_historical_r1i1p1
+        zg_Amon_inmcm4_historical_r1i1p1
+        zg_Amon_IPSL-CM5A-LR_historical_r1i1p1
+        zg_Amon_IPSL-CM5A-MR_historical_r1i1p1
+        zg_Amon_IPSL-CM5B-LR_historical_r1i1p1
+        zg_Amon_MIROC4h_historical_r1i1p1
+        zg_Amon_MIROC5_historical_r1i1p1
+        zg_Amon_MIROC-ESM-CHEM_historical_r1i1p1
+        zg_Amon_MIROC-ESM_historical_r1i1p1
+        zg_Amon_MPI-ESM-LR_historical_r1i1p1
+        zg_Amon_MPI-ESM-MR_historical_r1i1p1
+        zg_Amon_MPI-ESM-P_historical_r1i1p1
+        zg_Amon_MRI-CGCM3_historical_r1i1p1
+        zg_Amon_MRI-ESM1_historical_r1i1p1
+        zg_Amon_NorESM1-ME_historical_r1i1p1
+        zg_Amon_NorESM1-M_historical_r1i1p1
+    """
+    cmip_models = [x.replace('zg_', '{0}.') for x in cmip5_list.strip().split()]
+    cmip_variable_list = (
+        ("evspsbl", "EVAP",     'kg m-2 s-1', "Evaporation"),
+        ("hfls",  'LHF',        'W m-2',      "Latent Heat Flux"),
+        ("hfss",  'SHF',        'W m-2',      "Sensible Heat Flux"),
+        ("hurs",  'RH_SURF',    '%',          "Near Surface Relative Humidity"),
+        ("hus",   'SPHUM',      'kg kg-1',    "Specific Humidity"),
+        ("huss",  'SPHUM_SURF', 'kg kg-1',    "Near Surface Specific Humidity"),
+        ("mrsos", 'SOILMOIST',  'kg m-2',     "Soil Moisture in Upper Soil Column"),
+        ("pr",    'PRECIP',     'kg m-2 s-1', "Precipitation"),
+        ("ps",    'PSFC',       'Pa',         "Surface Pressure"),
+        ("rlds",  'SLWDN',      'W m-2',      "Longwave Down at Surface"),
+        ("rlus",  'SLWUP',      'W m-2',      "Longwave Up at Surface"),
+        ("rlut",  'TLWUP',      'W m-2',      "Longwave Up at TOA"),
+        ("rsds",  'SSWDN',      'W m-2',      "Shortwave Down at Surface"),
+        ("rsdt",  'TSWDN',      'W m-2',      "Shortwave Down at TOA"),
+        ("rsus",  'SSWUP',      'W m-2',      "Shortwave Up at Surface"),
+        ("rsuscs",'SSWUP_CLRSKY','W m-2',     "Surface Shortwave Up, CLear Sky"),
+        ("rsut",  'TSWUP',      'W m-2',      "Shortwave Up at TOA"),
+        ("ta",    'T',          'K',          "Air Temperature"),
+        ("tas",   'T_SURF',     'K',          "Near Surface Air Temperature"),
+        ("ts",   'T_SKIN',      'K',          "Skin Temperature"),
+        ("ua",    'U',          'm s-1',      "Zonal Wind"),
+        ("uas",    'U_SURF',    'm s-1',      "Zonal Wind at Surface"),
+        ("va",    'V',          'm s-1',      "Meridional Wind"),
+        ("vas",    'V_SURF',    'm s-1',      "Meridional Wind at Surface"),
+        ("wap",   'OMEGA',      'Pa s-1',     "Pressure Velocity"),
+        ("zg",    'GHT',        'm',          "Geopotential Height"),
+                      )
+
+    import string
+    tr_table = string.maketrans('-_', '..')
+
+    for m in cmip_models:
+        for v in cmip_variable_list:
+            model_regex = '^cmip5.{0}'.format(m.format(v[0]))
+            model_regex = model_regex.translate(tr_table)
+
+            filename_stem = model_regex
+            filename_stem = filename_stem.replace('^', '')
+            filename_stem = filename_stem.replace('.Amon.', '.')
+            filename_stem = filename_stem.replace('.r1i1p1', '')
+
+            tup = (joblist_create, model_regex, [v[0], ], (filename_stem, 'monthly', v[1], v[2], v[3]),)
+            dispatch_table.append(tup)
+
 
     try:
         choice = int(sys.argv[1])

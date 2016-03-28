@@ -8,12 +8,12 @@ import pymongo
 import hashlib
 
 def get_netcdf_filenames():
-    j = glob('cfsr*/*/*nc')
-    j.extend(glob('cmap*/*nc'))
+    j = glob('cmap*/*/*nc')
+    j.extend(glob('cfsr*/*/*nc'))
     j.extend(glob('era*/*nc'))
     j.extend(glob('gp*/*nc'))
     j.extend(glob('merra*/*nc'))
-    j.extend(glob('trmm*/*nc'))
+#    j.extend(glob('trmm*/*nc'))
     j.extend(glob('cmip*/*nc'))
     j.extend(glob('ersst*/*nc'))
     return j
@@ -26,6 +26,7 @@ def main():
     for f in filenames:
         filedict = {}
         filedict['filename_on_disk'] = f
+        print(f)
         fh = netCDF4.Dataset(f)
         for x in fh.ncattrs():
             v = fh.getncattr(x)
